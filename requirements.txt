@@ -1,5 +1,4 @@
 azure-functions
 requests
 pandas
-sqlalchemy
-pyodbc
+mssql-python
