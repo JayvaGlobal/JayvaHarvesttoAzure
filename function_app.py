@@ -41,11 +41,12 @@ def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
         sql_connection_string = (
             f"Server={server};"
             f"Database={database};"
-            f"User Id={username};"
-            f"Password={password};"
+            f"UID={username};"
+            f"PWD={password};"
+            "Authentication=SqlPassword;"
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
-        )
+)
 
         logging.error("Step 2: opening SQL connection")
         conn = connect(sql_connection_string)
