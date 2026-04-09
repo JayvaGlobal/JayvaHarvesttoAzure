@@ -1,9 +1,9 @@
 import os
 
-SQL_SERVER = os.getenv("SQL_SERVER")
-SQL_DATABASE = os.getenv("SQL_DATABASE")
-SQL_USERNAME = os.getenv("SQL_USERNAME")
-SQL_PASSWORD = os.getenv("SQL_PASSWORD")
+SQL_SERVER = os.getenv("AZURE_SQL_SERVER")
+SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE")
+SQL_USERNAME = os.getenv("AZURE_SQL_USERNAME")
+SQL_PASSWORD = os.getenv("AZURE_SQL_PASSWORD")
 SQL_DRIVER = os.getenv("SQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
 XERO_CLIENT_ID = os.getenv("XERO_CLIENT_ID")
