@@ -16,10 +16,8 @@ def refresh_access_token():
         timeout=60,
     )
 
-    if not response.ok:
-        print("Token refresh failed")
-        print("Status:", response.status_code)
-        print("Body:", response.text)
+    print("Token response status:", response.status_code)
+    print("Token response body:", response.text)
 
     response.raise_for_status()
     return response.json()
@@ -31,5 +29,9 @@ def get_connections(access_token: str):
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=60,
     )
+
+    print("Connections response status:", response.status_code)
+    print("Connections response body:", response.text)
+
     response.raise_for_status()
     return response.json()
