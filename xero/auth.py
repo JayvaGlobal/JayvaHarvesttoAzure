@@ -15,6 +15,12 @@ def refresh_access_token():
         auth=(XERO_CLIENT_ID, XERO_CLIENT_SECRET),
         timeout=60,
     )
+
+    if not response.ok:
+        print("Token refresh failed")
+        print("Status:", response.status_code)
+        print("Body:", response.text)
+
     response.raise_for_status()
     return response.json()
 
