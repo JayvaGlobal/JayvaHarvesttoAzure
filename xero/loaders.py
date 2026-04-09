@@ -1,9 +1,10 @@
 import pandas as pd
 
+
 def flatten_contacts(rows, tenant_name):
-    out = []
+    output = []
     for r in rows:
-        out.append({
+        output.append({
             "contact_id": r.get("ContactID"),
             "contact_name": r.get("Name"),
             "contact_status": r.get("ContactStatus"),
@@ -13,12 +14,13 @@ def flatten_contacts(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
-    return pd.DataFrame(out)
+    return pd.DataFrame(output)
+
 
 def flatten_accounts(rows, tenant_name):
-    out = []
+    output = []
     for r in rows:
-        out.append({
+        output.append({
             "account_id": r.get("AccountID"),
             "code": r.get("Code"),
             "name": r.get("Name"),
@@ -31,13 +33,19 @@ def flatten_accounts(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
-    return pd.DataFrame(out)
+    return pd.DataFrame(output)
+
 
 def flatten_invoices(rows, tenant_name):
     header_rows = []
     line_rows = []
+
     for r in rows:
+        if r.get("Type") == "ACCPAY":
+            continue
+
         contact = r.get("Contact", {}) or {}
+
         header_rows.append({
             "invoice_id": r.get("InvoiceID"),
             "invoice_number": r.get("InvoiceNumber"),
@@ -58,10 +66,12 @@ def flatten_invoices(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
+
         for idx, line in enumerate(r.get("LineItems", []) or [], start=1):
             tracking = line.get("Tracking", []) or []
             t1 = tracking[0] if len(tracking) > 0 else {}
             t2 = tracking[1] if len(tracking) > 1 else {}
+
             line_rows.append({
                 "invoice_id": r.get("InvoiceID"),
                 "line_num": idx,
@@ -77,13 +87,15 @@ def flatten_invoices(rows, tenant_name):
                 "tracking_2_option": t2.get("Option"),
                 "tenant_name": tenant_name,
             })
+
     return pd.DataFrame(header_rows), pd.DataFrame(line_rows)
 
+
 def flatten_payments(rows, tenant_name):
-    out = []
+    output = []
     for r in rows:
         invoice = r.get("Invoice", {}) or {}
-        out.append({
+        output.append({
             "payment_id": r.get("PaymentID"),
             "invoice_id": invoice.get("InvoiceID"),
             "payment_date": str(r.get("Date") or "")[:10] if r.get("Date") else None,
@@ -93,13 +105,14 @@ def flatten_payments(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
-    return pd.DataFrame(out)
+    return pd.DataFrame(output)
+
 
 def flatten_credit_notes(rows, tenant_name):
-    out = []
+    output = []
     for r in rows:
         contact = r.get("Contact", {}) or {}
-        out.append({
+        output.append({
             "credit_note_id": r.get("CreditNoteID"),
             "credit_note_number": r.get("CreditNoteNumber"),
             "contact_id": contact.get("ContactID"),
@@ -111,13 +124,19 @@ def flatten_credit_notes(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
-    return pd.DataFrame(out)
+    return pd.DataFrame(output)
+
 
 def flatten_bills(rows, tenant_name):
     header_rows = []
     line_rows = []
+
     for r in rows:
+        if r.get("Type") != "ACCPAY":
+            continue
+
         contact = r.get("Contact", {}) or {}
+
         header_rows.append({
             "bill_id": r.get("InvoiceID"),
             "bill_number": r.get("InvoiceNumber"),
@@ -136,10 +155,12 @@ def flatten_bills(rows, tenant_name):
             "updated_date_utc": r.get("UpdatedDateUTC"),
             "tenant_name": tenant_name,
         })
+
         for idx, line in enumerate(r.get("LineItems", []) or [], start=1):
             tracking = line.get("Tracking", []) or []
             t1 = tracking[0] if len(tracking) > 0 else {}
             t2 = tracking[1] if len(tracking) > 1 else {}
+
             line_rows.append({
                 "bill_id": r.get("InvoiceID"),
                 "line_num": idx,
@@ -155,4 +176,5 @@ def flatten_bills(rows, tenant_name):
                 "tracking_2_option": t2.get("Option"),
                 "tenant_name": tenant_name,
             })
+
     return pd.DataFrame(header_rows), pd.DataFrame(line_rows)
