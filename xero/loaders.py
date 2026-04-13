@@ -28,7 +28,10 @@ def get_xero_connections(conn):
 
 
 def load_accounts_for_connection(connection_name: str, tenant_id: str, tenant_name: str):
-    accounts = get_paged("Accounts", connection_name=connection_name)
+    from .xero_client import get_one
+
+    data = get_one("Accounts", connection_name=connection_name)
+    accounts = data.get("Accounts", [])
 
     rows = []
     loaded_at = datetime.now(timezone.utc)
