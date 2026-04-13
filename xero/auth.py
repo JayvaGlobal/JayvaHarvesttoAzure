@@ -5,7 +5,7 @@ import requests
 
 from .config import XERO_CLIENT_ID, XERO_CLIENT_SECRET, XERO_REDIRECT_URI
 from .db import (
-    get_engine,
+    get_connection,
     ensure_xero_oauth_table,
     save_xero_connection,
     load_xero_connection,
@@ -65,55 +65,63 @@ def get_connections(access_token: str):
 
 
 def save_initial_tokens_from_code(auth_code: str):
-    engine = get_engine()
-    ensure_xero_oauth_table(engine)
+    conn = get_connection()
 
-    tokens = exchange_code_for_tokens(auth_code)
-    connections = get_connections(tokens["access_token"])
+    try:
+        ensure_xero_oauth_table(conn)
 
-    saved = []
+        tokens = exchange_code_for_tokens(auth_code)
+        connections = get_connections(tokens["access_token"])
 
-    for c in connections:
-        connection_name = f"xero_{c['tenantId']}"
-        save_xero_connection(
-            engine=engine,
-            connection_name=connection_name,
-            tenant_id=c["tenantId"],
-            tenant_name=c["tenantName"],
-            access_token=tokens["access_token"],
-            refresh_token=tokens["refresh_token"],
-            expires_in=tokens["expires_in"],
-        )
-        saved.append({
-            "connection_name": connection_name,
-            "tenant_name": c["tenantName"],
-            "tenant_id": c["tenantId"],
-        })
+        saved = []
 
-    return saved
+        for c in connections:
+            connection_name = f"xero_{c['tenantId']}"
+            save_xero_connection(
+                conn=conn,
+                connection_name=connection_name,
+                tenant_id=c["tenantId"],
+                tenant_name=c["tenantName"],
+                access_token=tokens["access_token"],
+                refresh_token=tokens["refresh_token"],
+                expires_in=tokens["expires_in"],
+            )
+            saved.append({
+                "connection_name": connection_name,
+                "tenant_name": c["tenantName"],
+                "tenant_id": c["tenantId"],
+            })
+
+        return saved
+    finally:
+        conn.close()
 
 
 def get_valid_access_token(connection_name: str):
-    engine = get_engine()
-    state = load_xero_connection(engine, connection_name)
+    conn = get_connection()
 
-    expires_at = state["access_token_expires_at"]
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    try:
+        state = load_xero_connection(conn, connection_name)
 
-    now_utc = datetime.now(timezone.utc)
+        expires_at = state["access_token_expires_at"]
+        if expires_at is not None and getattr(expires_at, "tzinfo", None) is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
 
-    if expires_at is not None and expires_at > now_utc:
-        return state["access_token"], state["tenant_id"]
+        now_utc = datetime.now(timezone.utc)
 
-    refreshed = refresh_xero_token(state["refresh_token"])
+        if expires_at is not None and expires_at > now_utc:
+            return state["access_token"], state["tenant_id"]
 
-    update_xero_tokens(
-        engine=engine,
-        connection_name=connection_name,
-        access_token=refreshed["access_token"],
-        refresh_token=refreshed["refresh_token"],
-        expires_in=refreshed["expires_in"],
-    )
+        refreshed = refresh_xero_token(state["refresh_token"])
 
-    return refreshed["access_token"], state["tenant_id"]
+        update_xero_tokens(
+            conn=conn,
+            connection_name=connection_name,
+            access_token=refreshed["access_token"],
+            refresh_token=refreshed["refresh_token"],
+            expires_in=refreshed["expires_in"],
+        )
+
+        return refreshed["access_token"], state["tenant_id"]
+    finally:
+        conn.close()
