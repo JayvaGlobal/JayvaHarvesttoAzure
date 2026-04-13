@@ -330,3 +330,162 @@ def xero_contacts_import(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Xero contacts import failed: {str(e)}")
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+@app.route(route="xero_accounts_import", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_accounts_import(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_accounts_for_connection,
+            write_accounts_stage,
+            merge_accounts,
+        )
+
+        connection_name = req.params.get("connection_name")
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+            if connection_name:
+                all_conn_rows = [r for r in all_conn_rows if r[0] == connection_name]
+
+            if not all_conn_rows:
+                return func.HttpResponse("No matching Xero connection found", status_code=404)
+
+            all_rows = []
+            for row in all_conn_rows:
+                rows = load_accounts_for_connection(row[0], row[1], row[2])
+                all_rows.extend(rows)
+
+            write_accounts_stage(conn, all_rows)
+            merge_accounts(conn)
+
+            return func.HttpResponse(f"Loaded {len(all_rows)} account rows", status_code=200)
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+
+@app.route(route="xero_invoices_import", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_invoices_import(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_invoices_for_connection,
+            write_invoices_stage,
+            merge_invoices,
+        )
+
+        connection_name = req.params.get("connection_name")
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+            if connection_name:
+                all_conn_rows = [r for r in all_conn_rows if r[0] == connection_name]
+
+            if not all_conn_rows:
+                return func.HttpResponse("No matching Xero connection found", status_code=404)
+
+            all_rows = []
+            for row in all_conn_rows:
+                rows = load_invoices_for_connection(row[0], row[1], row[2])
+                all_rows.extend(rows)
+
+            write_invoices_stage(conn, all_rows)
+            merge_invoices(conn)
+
+            return func.HttpResponse(f"Loaded {len(all_rows)} invoice rows", status_code=200)
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+
+@app.route(route="xero_payments_import", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_payments_import(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_payments_for_connection,
+            write_payments_stage,
+            merge_payments,
+        )
+
+        connection_name = req.params.get("connection_name")
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+            if connection_name:
+                all_conn_rows = [r for r in all_conn_rows if r[0] == connection_name]
+
+            if not all_conn_rows:
+                return func.HttpResponse("No matching Xero connection found", status_code=404)
+
+            all_rows = []
+            for row in all_conn_rows:
+                rows = load_payments_for_connection(row[0], row[1], row[2])
+                all_rows.extend(rows)
+
+            write_payments_stage(conn, all_rows)
+            merge_payments(conn)
+
+            return func.HttpResponse(f"Loaded {len(all_rows)} payment rows", status_code=200)
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+
+@app.route(route="xero_bank_transactions_import", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_bank_transactions_import(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_bank_transactions_for_connection,
+            write_bank_transactions_stage,
+            merge_bank_transactions,
+        )
+
+        connection_name = req.params.get("connection_name")
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+            if connection_name:
+                all_conn_rows = [r for r in all_conn_rows if r[0] == connection_name]
+
+            if not all_conn_rows:
+                return func.HttpResponse("No matching Xero connection found", status_code=404)
+
+            all_rows = []
+            for row in all_conn_rows:
+                rows = load_bank_transactions_for_connection(row[0], row[1], row[2])
+                all_rows.extend(rows)
+
+            write_bank_transactions_stage(conn, all_rows)
+            merge_bank_transactions(conn)
+
+            return func.HttpResponse(f"Loaded {len(all_rows)} bank transaction rows", status_code=200)
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
