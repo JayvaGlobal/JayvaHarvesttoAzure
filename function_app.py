@@ -213,8 +213,7 @@ def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
         if not code:
             return func.HttpResponse("Missing code", status_code=400)
 
-        # Import inside the function so the route can still register
-        from xero.xero.auth import save_initial_tokens_from_code
+        from xero.auth import save_initial_tokens_from_code
 
         saved = save_initial_tokens_from_code(code)
 
