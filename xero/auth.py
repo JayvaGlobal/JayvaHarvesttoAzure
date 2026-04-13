@@ -31,7 +31,10 @@ def exchange_code_for_tokens(auth_code: str):
     }
 
     r = requests.post(TOKEN_URL, headers=headers, data=data, timeout=60)
-    r.raise_for_status()
+
+    if not r.ok:
+    raise Exception(f"Token exchange failed: {r.status_code} {r.text}")
+
     return r.json()
 
 
@@ -50,7 +53,10 @@ def refresh_xero_token(refresh_token: str):
     }
 
     r = requests.post(TOKEN_URL, headers=headers, data=data, timeout=60)
-    r.raise_for_status()
+
+    if not r.ok:
+    raise Exception(f"Refresh failed: {r.status_code} {r.text}")
+
     return r.json()
 
 
