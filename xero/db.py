@@ -1,34 +1,23 @@
 from datetime import datetime, timedelta, timezone
+from mssql_python import connect
 
-from sqlalchemy import create_engine, text
-from .config import SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, SQL_DRIVER
+from .config import SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD
 
 
-def get_engine():
-    conn_str = (
-        f"mssql+pyodbc://{SQL_USERNAME}:{SQL_PASSWORD}@{SQL_SERVER}/{SQL_DATABASE}"
-        f"?driver={SQL_DRIVER.replace(' ', '+')}"
+def get_connection():
+    sql_connection_string = (
+        f"Server={SQL_SERVER};"
+        f"Database={SQL_DATABASE};"
+        f"UID={SQL_USERNAME};"
+        f"PWD={SQL_PASSWORD};"
+        "Authentication=SqlPassword;"
+        "Encrypt=yes;"
+        "TrustServerCertificate=no;"
     )
-    return create_engine(conn_str, fast_executemany=True)
+    return connect(sql_connection_string)
 
 
-def write_dataframe(df, table_name, engine, schema="stg_xero", if_exists="append"):
-    if df.empty:
-        print(f"No rows to write for {schema}.{table_name}")
-        return
-
-    df.to_sql(
-        table_name,
-        engine,
-        schema=schema,
-        if_exists=if_exists,
-        index=False,
-        chunksize=1000,
-        method="multi",
-    )
-
-
-def ensure_xero_oauth_table(engine):
+def ensure_xero_oauth_table(conn):
     sql = """
     IF NOT EXISTS (
         SELECT 1
@@ -49,23 +38,24 @@ def ensure_xero_oauth_table(engine):
         );
     END
     """
-    with engine.begin() as conn:
-        conn.execute(text(sql))
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    conn.commit()
 
 
-def save_xero_connection(engine, connection_name, tenant_id, tenant_name, access_token, refresh_token, expires_in):
+def save_xero_connection(conn, connection_name, tenant_id, tenant_name, access_token, refresh_token, expires_in):
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in) - 120)
 
-    sql = text("""
+    sql = """
     MERGE dbo.xero_oauth_state AS target
     USING (
         SELECT
-            :connection_name AS connection_name,
-            :tenant_id AS tenant_id,
-            :tenant_name AS tenant_name,
-            :access_token AS access_token,
-            :refresh_token AS refresh_token,
-            :access_token_expires_at AS access_token_expires_at
+            ? AS connection_name,
+            ? AS tenant_id,
+            ? AS tenant_name,
+            ? AS access_token,
+            ? AS refresh_token,
+            ? AS access_token_expires_at
     ) AS src
     ON target.connection_name = src.connection_name
     WHEN MATCHED THEN
@@ -98,21 +88,24 @@ def save_xero_connection(engine, connection_name, tenant_id, tenant_name, access
             SYSUTCDATETIME(),
             SYSUTCDATETIME()
         );
-    """)
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        sql,
+        (
+            connection_name,
+            tenant_id,
+            tenant_name,
+            access_token,
+            refresh_token,
+            expires_at,
+        ),
+    )
+    conn.commit()
 
-    with engine.begin() as conn:
-        conn.execute(sql, {
-            "connection_name": connection_name,
-            "tenant_id": tenant_id,
-            "tenant_name": tenant_name,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "access_token_expires_at": expires_at,
-        })
 
-
-def load_xero_connection(engine, connection_name):
-    sql = text("""
+def load_xero_connection(conn, connection_name):
+    sql = """
         SELECT
             connection_name,
             tenant_id,
@@ -121,35 +114,37 @@ def load_xero_connection(engine, connection_name):
             refresh_token,
             access_token_expires_at
         FROM dbo.xero_oauth_state
-        WHERE connection_name = :connection_name
-    """)
-
-    with engine.begin() as conn:
-        row = conn.execute(sql, {"connection_name": connection_name}).mappings().first()
+        WHERE connection_name = ?
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql, (connection_name,))
+    row = cursor.fetchone()
 
     if not row:
         raise Exception(f"No Xero token row found for {connection_name}")
 
-    return dict(row)
+    return {
+        "connection_name": row[0],
+        "tenant_id": row[1],
+        "tenant_name": row[2],
+        "access_token": row[3],
+        "refresh_token": row[4],
+        "access_token_expires_at": row[5],
+    }
 
 
-def update_xero_tokens(engine, connection_name, access_token, refresh_token, expires_in):
+def update_xero_tokens(conn, connection_name, access_token, refresh_token, expires_in):
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in) - 120)
 
-    sql = text("""
+    sql = """
         UPDATE dbo.xero_oauth_state
-        SET access_token = :access_token,
-            refresh_token = :refresh_token,
-            access_token_expires_at = :access_token_expires_at,
+        SET access_token = ?,
+            refresh_token = ?,
+            access_token_expires_at = ?,
             refresh_token_updated_at = SYSUTCDATETIME(),
             updated_at = SYSUTCDATETIME()
-        WHERE connection_name = :connection_name
-    """)
-
-    with engine.begin() as conn:
-        conn.execute(sql, {
-            "connection_name": connection_name,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "access_token_expires_at": expires_at,
-        })
+        WHERE connection_name = ?
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql, (access_token, refresh_token, expires_at, connection_name))
+    conn.commit()
