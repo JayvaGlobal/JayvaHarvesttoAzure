@@ -231,6 +231,7 @@ def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
+
 @app.route(route="xero_test", auth_level=func.AuthLevel.ANONYMOUS)
 def xero_test(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -247,3 +248,34 @@ def xero_test(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Xero test failed: {str(e)}")
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+
+@app.timer_trigger(schedule="0 0 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_token_keepalive(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO TOKEN KEEPALIVE STARTED ===")
+
+    try:
+        from xero.auth import get_connection, get_valid_access_token
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT connection_name FROM dbo.xero_oauth_state")
+        rows = cursor.fetchall()
+
+        for row in rows:
+            connection_name = row[0]
+            try:
+                get_valid_access_token(connection_name)
+                logging.error(f"Token OK for {connection_name}")
+            except Exception as inner_e:
+                logging.error(f"Token refresh failed for {connection_name}: {str(inner_e)}")
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero keepalive failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+    logging.error("=== XERO TOKEN KEEPALIVE COMPLETED ===")
