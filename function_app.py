@@ -280,6 +280,7 @@ def xero_token_keepalive(mytimer: func.TimerRequest) -> None:
 
     logging.error("=== XERO TOKEN KEEPALIVE COMPLETED ===")
 
+
 @app.route(route="xero_contacts_import", auth_level=func.AuthLevel.ANONYMOUS)
 def xero_contacts_import(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -330,6 +331,7 @@ def xero_contacts_import(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Xero contacts import failed: {str(e)}")
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
 
 @app.route(route="xero_accounts_import", auth_level=func.AuthLevel.ANONYMOUS)
 def xero_accounts_import(req: func.HttpRequest) -> func.HttpResponse:
@@ -489,3 +491,155 @@ def xero_bank_transactions_import(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+
+def _run_xero_accounts_import():
+    from xero.auth import get_connection
+    from xero.loaders import (
+        get_xero_connections,
+        load_accounts_for_connection,
+        write_accounts_stage,
+        merge_accounts,
+    )
+
+    conn = get_connection()
+    try:
+        all_conn_rows = get_xero_connections(conn)
+        all_rows = []
+
+        for row in all_conn_rows:
+            rows = load_accounts_for_connection(row[0], row[1], row[2])
+            all_rows.extend(rows)
+
+        write_accounts_stage(conn, all_rows)
+        merge_accounts(conn)
+
+        logging.error(f"Accounts import complete. Rows loaded: {len(all_rows)}")
+    finally:
+        conn.close()
+
+
+def _run_xero_invoices_import():
+    from xero.auth import get_connection
+    from xero.loaders import (
+        get_xero_connections,
+        load_invoices_for_connection,
+        write_invoices_stage,
+        merge_invoices,
+    )
+
+    conn = get_connection()
+    try:
+        all_conn_rows = get_xero_connections(conn)
+        all_rows = []
+
+        for row in all_conn_rows:
+            rows = load_invoices_for_connection(row[0], row[1], row[2])
+            all_rows.extend(rows)
+
+        write_invoices_stage(conn, all_rows)
+        merge_invoices(conn)
+
+        logging.error(f"Invoices import complete. Rows loaded: {len(all_rows)}")
+    finally:
+        conn.close()
+
+
+def _run_xero_payments_import():
+    from xero.auth import get_connection
+    from xero.loaders import (
+        get_xero_connections,
+        load_payments_for_connection,
+        write_payments_stage,
+        merge_payments,
+    )
+
+    conn = get_connection()
+    try:
+        all_conn_rows = get_xero_connections(conn)
+        all_rows = []
+
+        for row in all_conn_rows:
+            rows = load_payments_for_connection(row[0], row[1], row[2])
+            all_rows.extend(rows)
+
+        write_payments_stage(conn, all_rows)
+        merge_payments(conn)
+
+        logging.error(f"Payments import complete. Rows loaded: {len(all_rows)}")
+    finally:
+        conn.close()
+
+
+def _run_xero_bank_transactions_import():
+    from xero.auth import get_connection
+    from xero.loaders import (
+        get_xero_connections,
+        load_bank_transactions_for_connection,
+        write_bank_transactions_stage,
+        merge_bank_transactions,
+    )
+
+    conn = get_connection()
+    try:
+        all_conn_rows = get_xero_connections(conn)
+        all_rows = []
+
+        for row in all_conn_rows:
+            rows = load_bank_transactions_for_connection(row[0], row[1], row[2])
+            all_rows.extend(rows)
+
+        write_bank_transactions_stage(conn, all_rows)
+        merge_bank_transactions(conn)
+
+        logging.error(f"Bank transactions import complete. Rows loaded: {len(all_rows)}")
+    finally:
+        conn.close()
+
+
+@app.timer_trigger(schedule="0 5 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_accounts_hourly(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO ACCOUNTS HOURLY STARTED ===")
+    try:
+        _run_xero_accounts_import()
+        logging.error("=== XERO ACCOUNTS HOURLY COMPLETED ===")
+    except Exception as e:
+        logging.error(f"Xero accounts hourly failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_invoices_hourly(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO INVOICES HOURLY STARTED ===")
+    try:
+        _run_xero_invoices_import()
+        logging.error("=== XERO INVOICES HOURLY COMPLETED ===")
+    except Exception as e:
+        logging.error(f"Xero invoices hourly failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 25 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_payments_hourly(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO PAYMENTS HOURLY STARTED ===")
+    try:
+        _run_xero_payments_import()
+        logging.error("=== XERO PAYMENTS HOURLY COMPLETED ===")
+    except Exception as e:
+        logging.error(f"Xero payments hourly failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 35 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_bank_transactions_hourly(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO BANK TRANSACTIONS HOURLY STARTED ===")
+    try:
+        _run_xero_bank_transactions_import()
+        logging.error("=== XERO BANK TRANSACTIONS HOURLY COMPLETED ===")
+    except Exception as e:
+        logging.error(f"Xero bank transactions hourly failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
