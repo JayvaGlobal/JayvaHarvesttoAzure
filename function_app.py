@@ -279,3 +279,54 @@ def xero_token_keepalive(mytimer: func.TimerRequest) -> None:
         raise
 
     logging.error("=== XERO TOKEN KEEPALIVE COMPLETED ===")
+
+@app.route(route="xero_contacts_import", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_contacts_import(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_contacts_for_connection,
+            write_contacts_stage,
+            merge_contacts,
+        )
+
+        connection_name = req.params.get("connection_name")
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if connection_name:
+                all_conn_rows = [r for r in all_conn_rows if r[0] == connection_name]
+
+            if not all_conn_rows:
+                return func.HttpResponse("No matching Xero connection found", status_code=404)
+
+            all_rows = []
+
+            for row in all_conn_rows:
+                conn_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading contacts for {tenant_name} ({conn_name})")
+                rows = load_contacts_for_connection(conn_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_contacts_stage(conn, all_rows)
+            merge_contacts(conn)
+
+            return func.HttpResponse(
+                f"Loaded {len(all_rows)} contact rows for {len(all_conn_rows)} tenant(s)",
+                status_code=200
+            )
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero contacts import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
