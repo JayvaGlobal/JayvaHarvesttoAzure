@@ -2,9 +2,9 @@ import os
 import logging
 import traceback
 import azure.functions as func
-from xero.xero.auth import save_initial_tokens_from_code
 
 app = func.FunctionApp()
+
 
 @app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
@@ -198,6 +198,11 @@ def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
         raise
 
 
+@app.route(route="ping", auth_level=func.AuthLevel.ANONYMOUS)
+def ping(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("pong", status_code=200)
+
+
 @app.route(route="xero_callback", auth_level=func.AuthLevel.ANONYMOUS)
 def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
     logging.error("=== XERO CALLBACK STARTED ===")
@@ -207,6 +212,9 @@ def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
 
         if not code:
             return func.HttpResponse("Missing code", status_code=400)
+
+        # Import inside the function so the route can still register
+        from xero.xero.auth import save_initial_tokens_from_code
 
         saved = save_initial_tokens_from_code(code)
 
