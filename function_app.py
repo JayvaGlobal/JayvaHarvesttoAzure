@@ -2,7 +2,7 @@ import os
 import logging
 import traceback
 import azure.functions as func
-from xero.auth import save_initial_tokens_from_code
+from xero.xero.auth import save_initial_tokens_from_code
 
 app = func.FunctionApp()
 
