@@ -1,5 +1,4 @@
 import requests
-
 from .auth import get_valid_access_token
 
 API_BASE = "https://api.xero.com/api.xro/2.0"
@@ -26,16 +25,6 @@ def get_paged(
     page_size: int = 100,
     extra_params: dict | None = None,
 ):
-    """
-    Pull a paged Xero endpoint.
-
-    Preferred usage:
-        get_paged("Contacts", connection_name="xero_<tenantid>")
-
-    Backwards-compatible usage:
-        get_paged("Contacts", access_token=token, tenant_id=tenant_id)
-    """
-
     if connection_name:
         access_token, tenant_id = get_valid_access_token(connection_name)
 
@@ -47,8 +36,8 @@ def get_paged(
 
     while True:
         url = f"{API_BASE}/{endpoint}"
-
         params = {"page": page}
+
         if extra_params:
             params.update(extra_params)
 
@@ -88,13 +77,6 @@ def get_one(
     tenant_id: str = None,
     extra_params: dict | None = None,
 ):
-    """
-    Pull a single-response Xero endpoint that is not paged.
-
-    Preferred usage:
-        get_one("Organisation", connection_name="xero_<tenantid>")
-    """
-
     if connection_name:
         access_token, tenant_id = get_valid_access_token(connection_name)
 
