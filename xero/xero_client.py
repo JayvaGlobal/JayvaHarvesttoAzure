@@ -12,24 +12,8 @@ def get_headers(access_token: str, tenant_id: str):
     }
 
 
-def get_headers_for_connection(connection_name: str):
+def get_paged(endpoint: str, connection_name: str, page_size: int = 100, extra_params: dict | None = None):
     access_token, tenant_id = get_valid_access_token(connection_name)
-    return get_headers(access_token, tenant_id)
-
-
-def get_paged(
-    endpoint: str,
-    connection_name: str = None,
-    access_token: str = None,
-    tenant_id: str = None,
-    page_size: int = 100,
-    extra_params: dict | None = None,
-):
-    if connection_name:
-        access_token, tenant_id = get_valid_access_token(connection_name)
-
-    if not access_token or not tenant_id:
-        raise ValueError("Provide either connection_name or both access_token and tenant_id")
 
     page = 1
     rows = []
@@ -48,14 +32,9 @@ def get_paged(
             timeout=120,
         )
         response.raise_for_status()
-        data = response.json()
 
-        payload = (
-            data.get(endpoint)
-            or data.get(endpoint.capitalize())
-            or data.get(endpoint.upper())
-            or []
-        )
+        data = response.json()
+        payload = data.get(endpoint) or data.get(endpoint.capitalize()) or []
 
         if not payload:
             break
@@ -68,28 +47,3 @@ def get_paged(
         page += 1
 
     return rows
-
-
-def get_one(
-    endpoint: str,
-    connection_name: str = None,
-    access_token: str = None,
-    tenant_id: str = None,
-    extra_params: dict | None = None,
-):
-    if connection_name:
-        access_token, tenant_id = get_valid_access_token(connection_name)
-
-    if not access_token or not tenant_id:
-        raise ValueError("Provide either connection_name or both access_token and tenant_id")
-
-    url = f"{API_BASE}/{endpoint}"
-
-    response = requests.get(
-        url,
-        headers=get_headers(access_token, tenant_id),
-        params=extra_params or {},
-        timeout=120,
-    )
-    response.raise_for_status()
-    return response.json()
