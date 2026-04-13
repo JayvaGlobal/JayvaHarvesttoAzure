@@ -2,6 +2,7 @@ import os
 import logging
 import traceback
 import azure.functions as func
+from xero.auth import save_initial_tokens_from_code
 
 app = func.FunctionApp()
 
@@ -46,7 +47,7 @@ def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
             "Authentication=SqlPassword;"
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
-)
+        )
 
         logging.error("Step 2: opening SQL connection")
         conn = connect(sql_connection_string)
@@ -195,3 +196,30 @@ def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
         logging.error(f"Error message: {str(e)}")
         logging.error(traceback.format_exc())
         raise
+
+
+@app.route(route="xero_callback", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
+    logging.error("=== XERO CALLBACK STARTED ===")
+
+    try:
+        code = req.params.get("code")
+
+        if not code:
+            return func.HttpResponse("Missing code", status_code=400)
+
+        saved = save_initial_tokens_from_code(code)
+
+        lines = ["Saved Xero connections:"]
+        for s in saved:
+            lines.append(f"{s['connection_name']} - {s['tenant_name']} ({s['tenant_id']})")
+
+        logging.error("=== XERO CALLBACK COMPLETED SUCCESSFULLY ===")
+        return func.HttpResponse("\n".join(lines), status_code=200)
+
+    except Exception as e:
+        logging.error("=== XERO CALLBACK FAILED ===")
+        logging.error(f"Error type: {type(e).__name__}")
+        logging.error(f"Error message: {str(e)}")
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
