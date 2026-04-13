@@ -230,3 +230,20 @@ def xero_callback(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Error message: {str(e)}")
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
+@app.route(route="xero_test", auth_level=func.AuthLevel.ANONYMOUS)
+def xero_test(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        from xero.xero_client import get_one
+
+        connection_name = req.params.get("connection_name")
+        if not connection_name:
+            return func.HttpResponse("Missing connection_name", status_code=400)
+
+        data = get_one("Organisation", connection_name=connection_name)
+        return func.HttpResponse(str(data), status_code=200)
+
+    except Exception as e:
+        logging.error(f"Xero test failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
