@@ -1,19 +1,15 @@
-from datetime import datetime, timezone, timedelta
 import requests
-
 from .auth import get_connection
 
-
-FRANKFURTER_URL = "https://api.frankfurter.dev/v2/rates"
+FRANKFURTER_V1 = "https://api.frankfurter.dev/v1"
 
 
 def get_latest_gbp_rates():
     response = requests.get(
-        FRANKFURTER_URL,
+        f"{FRANKFURTER_V1}/latest",
         params={
             "base": "GBP",
-            "quotes": "AUD,NZD,USD,EUR,GBP",
-            "providers": "ECB",
+            "symbols": "AUD,NZD,USD,EUR,GBP",
         },
         timeout=60,
     )
@@ -23,13 +19,10 @@ def get_latest_gbp_rates():
 
 def get_historical_gbp_rates(start_date: str, end_date: str):
     response = requests.get(
-        FRANKFURTER_URL,
+        f"{FRANKFURTER_V1}/{start_date}..{end_date}",
         params={
             "base": "GBP",
-            "quotes": "AUD,NZD,USD,EUR,GBP",
-            "from": start_date,
-            "to": end_date,
-            "providers": "ECB",
+            "symbols": "AUD,NZD,USD,EUR,GBP",
         },
         timeout=60,
     )
@@ -99,12 +92,11 @@ def upsert_fx_rates(rows):
 def normalise_latest_payload_to_rows(payload):
     rows = []
 
-    rate_date = payload.get("date")
+    rate_date = payload["date"]
     rates = payload.get("rates", {})
 
-    # Frankfurter with base=GBP returns rates as target-per-GBP.
-    # For reporting we want source -> GBP.
-    # So if payload says 1 GBP = 1.95 AUD, then AUD -> GBP = 1 / 1.95.
+    # base=GBP means returned rates are TARGET per 1 GBP
+    # for reporting we want SOURCE -> GBP, so invert
     for target_currency, rate in rates.items():
         if target_currency == "GBP":
             rows.append({
@@ -112,7 +104,7 @@ def normalise_latest_payload_to_rows(payload):
                 "source_currency": "GBP",
                 "reporting_currency": "GBP",
                 "fx_rate": 1.0,
-                "source_name": "ECB",
+                "source_name": "Frankfurter",
             })
         else:
             rows.append({
@@ -120,17 +112,16 @@ def normalise_latest_payload_to_rows(payload):
                 "source_currency": target_currency,
                 "reporting_currency": "GBP",
                 "fx_rate": float(1 / rate),
-                "source_name": "ECB",
+                "source_name": "Frankfurter",
             })
 
-    # Ensure GBP->GBP exists even if not returned
     if not any(r["source_currency"] == "GBP" for r in rows):
         rows.append({
             "rate_date": rate_date,
             "source_currency": "GBP",
             "reporting_currency": "GBP",
             "fx_rate": 1.0,
-            "source_name": "ECB",
+            "source_name": "Frankfurter",
         })
 
     return rows
@@ -138,17 +129,18 @@ def normalise_latest_payload_to_rows(payload):
 
 def normalise_historical_payload_to_rows(payload):
     rows = []
+
     all_rates = payload.get("rates", {})
 
-    for rate_date, daily in all_rates.items():
-        for target_currency, rate in daily.items():
+    for rate_date, daily_rates in all_rates.items():
+        for target_currency, rate in daily_rates.items():
             if target_currency == "GBP":
                 rows.append({
                     "rate_date": rate_date,
                     "source_currency": "GBP",
                     "reporting_currency": "GBP",
                     "fx_rate": 1.0,
-                    "source_name": "ECB",
+                    "source_name": "Frankfurter",
                 })
             else:
                 rows.append({
@@ -156,7 +148,7 @@ def normalise_historical_payload_to_rows(payload):
                     "source_currency": target_currency,
                     "reporting_currency": "GBP",
                     "fx_rate": float(1 / rate),
-                    "source_name": "ECB",
+                    "source_name": "Frankfurter",
                 })
 
         if not any(r["rate_date"] == rate_date and r["source_currency"] == "GBP" for r in rows):
@@ -165,7 +157,7 @@ def normalise_historical_payload_to_rows(payload):
                 "source_currency": "GBP",
                 "reporting_currency": "GBP",
                 "fx_rate": 1.0,
-                "source_name": "ECB",
+                "source_name": "Frankfurter",
             })
 
     return rows
