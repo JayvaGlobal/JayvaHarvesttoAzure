@@ -7,10 +7,19 @@ def normalise_xero_date(value):
     if not value:
         return None
 
+    # Xero /Date(...) format
     if isinstance(value, str) and value.startswith("/Date("):
         try:
-            ms = int(value.replace("/Date(", "").replace(")/", ""))
-            return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+            digits = "".join(ch for ch in value if ch.isdigit())
+            millis = digits[:13]
+            return datetime.fromtimestamp(int(millis) / 1000, tz=timezone.utc)
+        except Exception:
+            return None
+
+    # ISO string
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
         except Exception:
             return None
 
@@ -110,6 +119,11 @@ def load_invoices_for_connection(connection_name: str, tenant_id: str, tenant_na
     for i in invoices:
         contact = i.get("Contact") or {}
 
+        invoice_date = normalise_xero_date(i.get("Date"))
+        due_date = normalise_xero_date(i.get("DueDate"))
+        updated_date_utc = normalise_xero_date(i.get("UpdatedDateUTC"))
+        fully_paid_on_date_utc = normalise_xero_date(i.get("FullyPaidOnDate"))
+
         rows.append((
             tenant_id,
             tenant_name,
@@ -127,10 +141,10 @@ def load_invoices_for_connection(connection_name: str, tenant_id: str, tenant_na
             i.get("AmountPaid"),
             i.get("AmountCredited"),
             i.get("CurrencyCode"),
-            normalise_xero_date(i.get("Date")),
-            normalise_xero_date(i.get("DueDate")),
-            normalise_xero_date(i.get("UpdatedDateUTC")),
-            normalise_xero_date(i.get("FullyPaidOnDate")),
+            invoice_date,
+            due_date,
+            updated_date_utc,
+            fully_paid_on_date_utc,
             i.get("Reference"),
             loaded_at,
         ))
@@ -194,6 +208,8 @@ def load_payments_for_connection(connection_name: str, tenant_id: str, tenant_na
         invoice = p.get("Invoice") or {}
         account = p.get("Account") or {}
 
+        payment_date = normalise_xero_date(p.get("Date"))
+
         rows.append((
             tenant_id,
             tenant_name,
@@ -205,7 +221,7 @@ def load_payments_for_connection(connection_name: str, tenant_id: str, tenant_na
             account.get("Name"),
             p.get("PaymentType"),
             p.get("Status"),
-            normalise_xero_date(p.get("Date")),
+            payment_date,
             p.get("Amount"),
             p.get("CurrencyRate"),
             p.get("Reference"),
