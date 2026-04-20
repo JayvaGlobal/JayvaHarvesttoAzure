@@ -539,6 +539,235 @@ def fx_rates_gbp_backfill(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(traceback.format_exc())
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
+@app.timer_trigger(schedule="0 10 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO INVOICES DAILY IMPORT STARTED ===")
+
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_invoices_for_connection,
+            write_invoices_stage,
+            merge_invoices,
+        )
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if not all_conn_rows:
+                logging.error("No Xero connections found for invoice import")
+                return
+
+            all_rows = []
+            for row in all_conn_rows:
+                connection_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading invoices for {tenant_name} ({connection_name})")
+                rows = load_invoices_for_connection(connection_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_invoices_stage(conn, all_rows)
+            merge_invoices(conn)
+
+            logging.error(f"Xero invoices daily import complete. Rows loaded: {len(all_rows)}")
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero invoices daily import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 20 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO PAYMENTS DAILY IMPORT STARTED ===")
+
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_payments_for_connection,
+            write_payments_stage,
+            merge_payments,
+        )
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if not all_conn_rows:
+                logging.error("No Xero connections found for payments import")
+                return
+
+            all_rows = []
+            for row in all_conn_rows:
+                connection_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading payments for {tenant_name} ({connection_name})")
+                rows = load_payments_for_connection(connection_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_payments_stage(conn, all_rows)
+            merge_payments(conn)
+
+            logging.error(f"Xero payments daily import complete. Rows loaded: {len(all_rows)}")
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero payments daily import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 30 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO ACCOUNTS DAILY IMPORT STARTED ===")
+
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_accounts_for_connection,
+            write_accounts_stage,
+            merge_accounts,
+        )
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if not all_conn_rows:
+                logging.error("No Xero connections found for accounts import")
+                return
+
+            all_rows = []
+            for row in all_conn_rows:
+                connection_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading accounts for {tenant_name} ({connection_name})")
+                rows = load_accounts_for_connection(connection_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_accounts_stage(conn, all_rows)
+            merge_accounts(conn)
+
+            logging.error(f"Xero accounts daily import complete. Rows loaded: {len(all_rows)}")
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero accounts daily import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 35 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO CONTACTS DAILY IMPORT STARTED ===")
+
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_contacts_for_connection,
+            write_contacts_stage,
+            merge_contacts,
+        )
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if not all_conn_rows:
+                logging.error("No Xero connections found for contacts import")
+                return
+
+            all_rows = []
+            for row in all_conn_rows:
+                connection_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading contacts for {tenant_name} ({connection_name})")
+                rows = load_contacts_for_connection(connection_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_contacts_stage(conn, all_rows)
+            merge_contacts(conn)
+
+            logging.error(f"Xero contacts daily import complete. Rows loaded: {len(all_rows)}")
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero contacts daily import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+@app.timer_trigger(schedule="0 40 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
+    logging.error("=== XERO BANK TRANSACTIONS DAILY IMPORT STARTED ===")
+
+    try:
+        from xero.auth import get_connection
+        from xero.loaders import (
+            get_xero_connections,
+            load_bank_transactions_for_connection,
+            write_bank_transactions_stage,
+            merge_bank_transactions,
+        )
+
+        conn = get_connection()
+
+        try:
+            all_conn_rows = get_xero_connections(conn)
+
+            if not all_conn_rows:
+                logging.error("No Xero connections found for bank transactions import")
+                return
+
+            all_rows = []
+            for row in all_conn_rows:
+                connection_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                logging.error(f"Loading bank transactions for {tenant_name} ({connection_name})")
+                rows = load_bank_transactions_for_connection(connection_name, tenant_id, tenant_name)
+                all_rows.extend(rows)
+
+            write_bank_transactions_stage(conn, all_rows)
+            merge_bank_transactions(conn)
+
+            logging.error(f"Xero bank transactions daily import complete. Rows loaded: {len(all_rows)}")
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logging.error(f"Xero bank transactions daily import failed: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
 
 @app.timer_trigger(schedule="0 45 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def fx_rates_gbp_daily(mytimer: func.TimerRequest) -> None:
