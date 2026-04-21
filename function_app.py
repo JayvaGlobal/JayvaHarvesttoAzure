@@ -393,6 +393,9 @@ def xero_invoices_import(req: func.HttpRequest) -> func.HttpResponse:
             load_invoices_for_connection,
             write_invoices_stage,
             merge_invoices,
+            load_invoice_lines_for_connection,
+            write_invoice_lines_stage,
+            merge_invoice_lines,
         )
 
         connection_name = req.params.get("connection_name")
@@ -406,15 +409,31 @@ def xero_invoices_import(req: func.HttpRequest) -> func.HttpResponse:
             if not all_conn_rows:
                 return func.HttpResponse("No matching Xero connection found", status_code=404)
 
-            all_rows = []
-            for row in all_conn_rows:
-                rows = load_invoices_for_connection(row[0], row[1], row[2])
-                all_rows.extend(rows)
+            invoice_rows = []
+            invoice_line_rows = []
 
-            write_invoices_stage(conn, all_rows)
+            for row in all_conn_rows:
+                conn_name = row[0]
+                tenant_id = row[1]
+                tenant_name = row[2]
+
+                invoice_rows.extend(
+                    load_invoices_for_connection(conn_name, tenant_id, tenant_name)
+                )
+                invoice_line_rows.extend(
+                    load_invoice_lines_for_connection(conn_name, tenant_id, tenant_name)
+                )
+
+            write_invoices_stage(conn, invoice_rows)
             merge_invoices(conn)
 
-            return func.HttpResponse(f"Loaded {len(all_rows)} invoice rows", status_code=200)
+            write_invoice_lines_stage(conn, invoice_line_rows)
+            merge_invoice_lines(conn)
+
+            return func.HttpResponse(
+                f"Loaded {len(invoice_rows)} invoice rows and {len(invoice_line_rows)} invoice line rows",
+                status_code=200
+            )
 
         finally:
             conn.close()
@@ -569,6 +588,9 @@ def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
             load_invoices_for_connection,
             write_invoices_stage,
             merge_invoices,
+            load_invoice_lines_for_connection,
+            write_invoice_lines_stage,
+            merge_invoice_lines,
         )
 
         conn = get_connection()
@@ -580,21 +602,33 @@ def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
                 logging.error("No Xero connections found for invoice import")
                 return
 
-            all_rows = []
+            invoice_rows = []
+            invoice_line_rows = []
+
             for row in all_conn_rows:
                 connection_name = row[0]
                 tenant_id = row[1]
                 tenant_name = row[2]
 
                 logging.error(f"Loading invoices for {tenant_name} ({connection_name})")
-                rows = load_invoices_for_connection(connection_name, tenant_id, tenant_name)
-                all_rows.extend(rows)
+                invoice_rows.extend(
+                    load_invoices_for_connection(connection_name, tenant_id, tenant_name)
+                )
+                invoice_line_rows.extend(
+                    load_invoice_lines_for_connection(connection_name, tenant_id, tenant_name)
+                )
 
-            write_invoices_stage(conn, all_rows)
+            write_invoices_stage(conn, invoice_rows)
             merge_invoices(conn)
+
+            write_invoice_lines_stage(conn, invoice_line_rows)
+            merge_invoice_lines(conn)
+
             update_sync_state(conn, "xero_invoices")
 
-            logging.error(f"Xero invoices import complete. Rows loaded: {len(all_rows)}")
+            logging.error(
+                f"Xero invoices import complete. Invoice rows: {len(invoice_rows)}, line rows: {len(invoice_line_rows)}"
+            )
 
         finally:
             conn.close()
@@ -605,7 +639,7 @@ def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="10 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO PAYMENTS IMPORT STARTED ===")
 
@@ -652,7 +686,7 @@ def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="20 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO ACCOUNTS IMPORT STARTED ===")
 
@@ -699,7 +733,7 @@ def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="30 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO CONTACTS IMPORT STARTED ===")
 
@@ -746,7 +780,7 @@ def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="40 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO BANK TRANSACTIONS IMPORT STARTED ===")
 
@@ -793,7 +827,7 @@ def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="50 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def fx_rates_gbp_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== GBP FX IMPORT STARTED ===")
 
