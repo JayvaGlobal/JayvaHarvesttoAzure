@@ -6,6 +6,24 @@ import azure.functions as func
 app = func.FunctionApp()
 
 
+def update_sync_state(conn, source_name: str) -> None:
+    cursor = conn.cursor()
+    cursor.execute("""
+        MERGE rpt.sync_state AS tgt
+        USING (SELECT ? AS source_name) AS src
+        ON tgt.source_name = src.source_name
+        WHEN MATCHED THEN
+            UPDATE SET
+                last_successful_sync_utc = SYSUTCDATETIME(),
+                updated_at_utc = SYSUTCDATETIME()
+        WHEN NOT MATCHED THEN
+            INSERT (source_name, last_successful_sync_utc, updated_at_utc)
+            VALUES (src.source_name, SYSUTCDATETIME(), SYSUTCDATETIME());
+    """, (source_name,))
+    conn.commit()
+    cursor.close()
+
+
 @app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
     logging.error("=== FUNCTION STARTED ===")
@@ -17,7 +35,6 @@ def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
 
         logging.error("Step 1 OK: modules imported")
 
-        # Clear proxy env vars
         for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
             os.environ.pop(key, None)
 
@@ -243,7 +260,7 @@ def xero_test(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
 
-@app.timer_trigger(schedule="0 0 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_token_keepalive(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO TOKEN KEEPALIVE STARTED ===")
 
@@ -262,6 +279,8 @@ def xero_token_keepalive(mytimer: func.TimerRequest) -> None:
                 logging.error(f"Token OK for {connection_name}")
             except Exception as inner_e:
                 logging.error(f"Token refresh failed for {connection_name}: {str(inner_e)}")
+
+        update_sync_state(conn, "xero_token_keepalive")
 
         cursor.close()
         conn.close()
@@ -286,7 +305,6 @@ def xero_contacts_import(req: func.HttpRequest) -> func.HttpResponse:
         )
 
         connection_name = req.params.get("connection_name")
-
         conn = get_connection()
 
         try:
@@ -542,7 +560,7 @@ def fx_rates_gbp_backfill(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== XERO INVOICES DAILY IMPORT STARTED ===")
+    logging.error("=== XERO INVOICES IMPORT STARTED ===")
 
     try:
         from xero.auth import get_connection
@@ -574,21 +592,22 @@ def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
 
             write_invoices_stage(conn, all_rows)
             merge_invoices(conn)
+            update_sync_state(conn, "xero_invoices")
 
-            logging.error(f"Xero invoices daily import complete. Rows loaded: {len(all_rows)}")
+            logging.error(f"Xero invoices import complete. Rows loaded: {len(all_rows)}")
 
         finally:
             conn.close()
 
     except Exception as e:
-        logging.error(f"Xero invoices daily import failed: {str(e)}")
+        logging.error(f"Xero invoices import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
 
-@app.timer_trigger(schedule="0 20 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== XERO PAYMENTS DAILY IMPORT STARTED ===")
+    logging.error("=== XERO PAYMENTS IMPORT STARTED ===")
 
     try:
         from xero.auth import get_connection
@@ -620,21 +639,22 @@ def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
 
             write_payments_stage(conn, all_rows)
             merge_payments(conn)
+            update_sync_state(conn, "xero_payments")
 
-            logging.error(f"Xero payments daily import complete. Rows loaded: {len(all_rows)}")
+            logging.error(f"Xero payments import complete. Rows loaded: {len(all_rows)}")
 
         finally:
             conn.close()
 
     except Exception as e:
-        logging.error(f"Xero payments daily import failed: {str(e)}")
+        logging.error(f"Xero payments import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
 
-@app.timer_trigger(schedule="0 30 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== XERO ACCOUNTS DAILY IMPORT STARTED ===")
+    logging.error("=== XERO ACCOUNTS IMPORT STARTED ===")
 
     try:
         from xero.auth import get_connection
@@ -666,21 +686,22 @@ def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
 
             write_accounts_stage(conn, all_rows)
             merge_accounts(conn)
+            update_sync_state(conn, "xero_accounts")
 
-            logging.error(f"Xero accounts daily import complete. Rows loaded: {len(all_rows)}")
+            logging.error(f"Xero accounts import complete. Rows loaded: {len(all_rows)}")
 
         finally:
             conn.close()
 
     except Exception as e:
-        logging.error(f"Xero accounts daily import failed: {str(e)}")
+        logging.error(f"Xero accounts import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
 
-@app.timer_trigger(schedule="0 35 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== XERO CONTACTS DAILY IMPORT STARTED ===")
+    logging.error("=== XERO CONTACTS IMPORT STARTED ===")
 
     try:
         from xero.auth import get_connection
@@ -712,21 +733,22 @@ def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
 
             write_contacts_stage(conn, all_rows)
             merge_contacts(conn)
+            update_sync_state(conn, "xero_contacts")
 
-            logging.error(f"Xero contacts daily import complete. Rows loaded: {len(all_rows)}")
+            logging.error(f"Xero contacts import complete. Rows loaded: {len(all_rows)}")
 
         finally:
             conn.close()
 
     except Exception as e:
-        logging.error(f"Xero contacts daily import failed: {str(e)}")
+        logging.error(f"Xero contacts import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
 
-@app.timer_trigger(schedule="0 40 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== XERO BANK TRANSACTIONS DAILY IMPORT STARTED ===")
+    logging.error("=== XERO BANK TRANSACTIONS IMPORT STARTED ===")
 
     try:
         from xero.auth import get_connection
@@ -758,23 +780,25 @@ def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
 
             write_bank_transactions_stage(conn, all_rows)
             merge_bank_transactions(conn)
+            update_sync_state(conn, "xero_bank_transactions")
 
-            logging.error(f"Xero bank transactions daily import complete. Rows loaded: {len(all_rows)}")
+            logging.error(f"Xero bank transactions import complete. Rows loaded: {len(all_rows)}")
 
         finally:
             conn.close()
 
     except Exception as e:
-        logging.error(f"Xero bank transactions daily import failed: {str(e)}")
+        logging.error(f"Xero bank transactions import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
 
-@app.timer_trigger(schedule="0 45 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def fx_rates_gbp_daily(mytimer: func.TimerRequest) -> None:
-    logging.error("=== GBP FX DAILY IMPORT STARTED ===")
+    logging.error("=== GBP FX IMPORT STARTED ===")
 
     try:
+        from xero.auth import get_connection
         from xero.fx_rates import (
             get_latest_gbp_rates,
             normalise_latest_payload_to_rows,
@@ -785,11 +809,17 @@ def fx_rates_gbp_daily(mytimer: func.TimerRequest) -> None:
         rows = normalise_latest_payload_to_rows(payload)
         upsert_fx_rates(rows)
 
-        logging.error(f"GBP FX daily import complete. Rows loaded: {len(rows)}")
+        conn = get_connection()
+        try:
+            update_sync_state(conn, "fx_rates_gbp_daily")
+        finally:
+            conn.close()
+
+        logging.error(f"GBP FX import complete. Rows loaded: {len(rows)}")
 
     except Exception as e:
-        logging.error(f"GBP FX daily import failed: {str(e)}")
+        logging.error(f"GBP FX import failed: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 
-    logging.error("=== GBP FX DAILY IMPORT COMPLETED ===")
+    logging.error("=== GBP FX IMPORT COMPLETED ===")
