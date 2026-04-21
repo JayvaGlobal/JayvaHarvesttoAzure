@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from .xero_client import get_paged
@@ -24,6 +25,15 @@ def normalise_xero_date(value):
             return None
 
     return value
+
+
+def safe_decimal(value):
+    if value in (None, "", "null"):
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
 
 
 def get_xero_connections(conn):
@@ -152,6 +162,54 @@ def load_invoices_for_connection(connection_name: str, tenant_id: str, tenant_na
     return rows
 
 
+def load_invoice_lines_for_connection(connection_name: str, tenant_id: str, tenant_name: str):
+    invoices = get_paged("Invoices", connection_name=connection_name)
+
+    rows = []
+    loaded_at = datetime.now(timezone.utc)
+
+    for i in invoices:
+        contact = i.get("Contact") or {}
+
+        invoice_id = i.get("InvoiceID")
+        invoice_number = i.get("InvoiceNumber")
+        invoice_type = i.get("Type")
+        invoice_status = i.get("Status")
+        invoice_date = normalise_xero_date(i.get("Date"))
+        currency_code = i.get("CurrencyCode")
+        contact_name = contact.get("Name")
+
+        line_items = i.get("LineItems") or []
+
+        for idx, line in enumerate(line_items, start=1):
+            tracking = line.get("Tracking") or []
+            line_item_id = line.get("LineItemID") or f"{invoice_id}_{idx}"
+
+            rows.append((
+                tenant_id,
+                tenant_name,
+                invoice_id,
+                invoice_number,
+                invoice_date,
+                contact_name,
+                invoice_type,
+                invoice_status,
+                currency_code,
+                line_item_id,
+                idx,
+                line.get("Description"),
+                safe_decimal(line.get("Quantity")),
+                safe_decimal(line.get("UnitAmount")),
+                safe_decimal(line.get("LineAmount")),
+                line.get("AccountCode"),
+                line.get("TaxType"),
+                json.dumps(tracking) if tracking else None,
+                loaded_at,
+            ))
+
+    return rows
+
+
 def write_invoices_stage(conn, rows):
     if not rows:
         return
@@ -192,9 +250,52 @@ def write_invoices_stage(conn, rows):
     conn.commit()
 
 
+def write_invoice_lines_stage(conn, rows):
+    if not rows:
+        return
+
+    cursor = conn.cursor()
+    cursor.execute("TRUNCATE TABLE raw.xero_invoice_lines_stage")
+    conn.commit()
+
+    insert_sql = """
+        INSERT INTO raw.xero_invoice_lines_stage (
+            tenant_id,
+            tenant_name,
+            invoice_id,
+            invoice_number,
+            invoice_date,
+            contact_name,
+            invoice_type,
+            invoice_status,
+            currency_code,
+            line_item_id,
+            line_num,
+            description,
+            quantity,
+            unit_amount,
+            line_amount,
+            account_code,
+            tax_type,
+            tracking_json,
+            source_loaded_at_utc
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    cursor.executemany(insert_sql, rows)
+    conn.commit()
+
+
 def merge_invoices(conn):
     cursor = conn.cursor()
     cursor.execute("EXEC rpt.usp_merge_xero_invoices")
+    conn.commit()
+
+
+def merge_invoice_lines(conn):
+    cursor = conn.cursor()
+    cursor.execute("EXEC rpt.usp_merge_xero_invoice_lines")
     conn.commit()
 
 
