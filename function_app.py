@@ -24,7 +24,7 @@ def update_sync_state(conn, source_name: str) -> None:
     cursor.close()
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 0 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def harvest_time_entries_incremental(mytimer: func.TimerRequest) -> None:
     logging.error("=== FUNCTION STARTED ===")
 
@@ -577,7 +577,7 @@ def fx_rates_gbp_backfill(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 10 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO INVOICES IMPORT STARTED ===")
 
@@ -639,7 +639,7 @@ def xero_invoices_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="10 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 20 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO PAYMENTS IMPORT STARTED ===")
 
@@ -686,7 +686,7 @@ def xero_payments_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="20 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 30 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO ACCOUNTS IMPORT STARTED ===")
 
@@ -733,7 +733,7 @@ def xero_accounts_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="30 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 40 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO CONTACTS IMPORT STARTED ===")
 
@@ -780,7 +780,7 @@ def xero_contacts_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="40 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 50 */2 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== XERO BANK TRANSACTIONS IMPORT STARTED ===")
 
@@ -827,7 +827,7 @@ def xero_bank_transactions_import_daily(mytimer: func.TimerRequest) -> None:
         raise
 
 
-@app.timer_trigger(schedule="50 */15 * * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
+@app.timer_trigger(schedule="0 0 6 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def fx_rates_gbp_daily(mytimer: func.TimerRequest) -> None:
     logging.error("=== GBP FX IMPORT STARTED ===")
 
